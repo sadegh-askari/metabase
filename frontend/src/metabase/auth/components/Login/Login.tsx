@@ -6,6 +6,7 @@ import _ from "underscore";
 import { usePageTitle } from "metabase/hooks/use-page-title";
 import type { AuthProvider } from "metabase/plugins/types";
 import { useSelector } from "metabase/redux";
+import { useSetting } from "metabase/settings";
 import { prefetchPage, useParams, useSearchParams } from "metabase/router";
 import { getApplicationName } from "metabase/selectors/whitelabel";
 import { Box, Divider } from "metabase/ui";
@@ -24,6 +25,7 @@ export const Login = (): JSX.Element => {
   const selection = getSelectedProvider(providers, params.provider);
   const redirectUrl = searchParams.get("redirect") ?? undefined;
   const applicationName = useSelector(getApplicationName);
+  const isPasswordLoginEnabled = useSetting("enable-password-login");
 
   usePageTitle(t`Login`);
 
@@ -40,6 +42,12 @@ export const Login = (): JSX.Element => {
     providers,
     (provider) => provider.name === "password",
   );
+  const defaultPasswordPanel =
+    isPasswordLoginEnabled !== false
+      ? passwordProvider.find((provider) => provider.Panel)
+      : undefined;
+  const panelProvider = selection?.Panel ? selection : defaultPasswordPanel;
+
   return (
     <AuthLayout>
       <Box
@@ -52,12 +60,12 @@ export const Login = (): JSX.Element => {
       >
         {t`Sign in to ${applicationName}`}
       </Box>
-      {selection && selection.Panel && (
+      {panelProvider?.Panel && (
         <Box mt="2.5rem">
-          <selection.Panel redirectUrl={redirectUrl} />
+          <panelProvider.Panel redirectUrl={redirectUrl} />
         </Box>
       )}
-      {!selection && (
+      {!panelProvider && (
         <Box mt="3.5rem">
           {otherProviders.map((provider) => (
             <Box key={provider.name} mt="2rem" ta="center">

@@ -24,7 +24,11 @@
      :client-id     (config/config-str :mb-keycloak-oidc-client-id)
      :client-secret (config/config-str :mb-keycloak-oidc-client-secret)
      :redirect-uri  (:redirect-uri request)
-     :scopes        ["openid" "email" "profile"]}))
+     :scopes        ["openid" "email" "profile"]
+     ;; Existing admin-linked subjects do not depend on mutable or unverified email claims. Unlinked
+     ;; identities are still required to present a verified email before matching an account.
+     :allow-unverified-email? true
+     :allow-missing-email? true}))
 
 (defn- failure [error message]
   {:success? false :error error :message message})
@@ -35,16 +39,21 @@
     (let [result (auth-identity/authenticate :provider/oidc (assoc request :oidc-config config))]
       (if (and (:success? result) (:user-data result))
         (let [claims (:claims result)
+              provider-id (:provider-id result)
+              linked-identity (when (and (string? provider-id) (seq provider-id))
+                                (auth-identity.db/auth-identity-by-provider-id "keycloak" provider-id))
               email-verified? (or (true? (:email_verified claims))
                                   (= "true" (:email_verified claims)))]
-          (if email-verified?
-            ;; Once linked, the stable Keycloak subject wins over an email change. The account is not rematched to a
-            ;; different Metabase user just because an email address was later reassigned.
-            (if-let [linked-identity (and (:provider-id result)
-                                          (auth-identity.db/auth-identity-by-provider-id "keycloak"
-                                                                                       (:provider-id result)))]
-              (assoc result :user-id (:user_id linked-identity))
-              result)
+          (cond
+            ;; An administrator can pre-link an existing account to the immutable Keycloak subject. This
+            ;; association takes precedence over email, which may be unverified or later changed.
+            linked-identity
+            (assoc result :user-id (:user_id linked-identity))
+
+            email-verified?
+            result
+
+            :else
             (failure :email-not-verified
                      (tru "Keycloak must return a verified email address for this account."))))
         result))

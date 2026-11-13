@@ -4,10 +4,12 @@ import { screen } from "__support__/ui";
 import { setup } from "./setup";
 
 describe("Login", () => {
-  it("should render a list of auth providers", () => {
+  it("should show the password form and providers in one login panel", () => {
     setup({ isPasswordLoginEnabled: true, isGoogleAuthEnabled: true });
 
-    expect(screen.getAllByRole("link")).toHaveLength(2);
+    expect(screen.getByLabelText("Email address")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByText("Sign in with Google")).toBeInTheDocument();
   });
 
   it("should render the panel of the selected provider", () => {

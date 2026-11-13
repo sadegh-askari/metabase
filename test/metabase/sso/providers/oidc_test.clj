@@ -270,7 +270,18 @@
       (is (true? (:success? result)))))
   (testing "Accepts token without an email_verified claim (claim is optional per OIDC Core)"
     (let [result (authenticate-with-claims base-claims test-config)]
-      (is (true? (:success? result))))))
+      (is (true? (:success? result)))))
+  (testing "Allows an explicitly unverified email only when the provider opts in"
+    (let [result (authenticate-with-claims (assoc base-claims :email_verified false)
+                                           (assoc test-config :allow-unverified-email? true))]
+      (is (true? (:success? result)))
+      (is (= "user@example.com" (get-in result [:user-data :email])))))
+  (testing "Allows a missing email only when the provider opts in"
+    (let [result (authenticate-with-claims (dissoc base-claims :email)
+                                           (assoc test-config :allow-missing-email? true))]
+      (is (true? (:success? result)))
+      (is (= "user123" (:provider-id result)))
+      (is (nil? (get-in result [:user-data :email]))))))
 
 (deftest authenticate-custom-attribute-mapping-test
   (testing "Uses custom attribute mappings when provided"

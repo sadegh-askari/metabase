@@ -12,17 +12,24 @@ import { useSetting } from "metabase/settings";
 import type { LoginData } from "metabase-types/api";
 
 import { getExternalAuthProviders } from "../../selectors";
-import { AuthTextLink } from "../AuthButton";
+import { KeycloakButton } from "../KeycloakButton";
 import { LoginForm } from "../LoginForm";
 
-import { ActionList, ActionListItem } from "./PasswordPanel.styled";
+import {
+  ActionList,
+  ActionListDivider,
+  ActionListItem,
+} from "./PasswordPanel.styled";
 
 interface PasswordPanelProps {
   redirectUrl?: string;
 }
 
 export const PasswordPanel = ({ redirectUrl }: PasswordPanelProps) => {
-  const providers = useSelector(getExternalAuthProviders);
+  const providers = useSelector(getExternalAuthProviders).filter(
+    (provider) => provider.name !== "keycloak",
+  );
+  const isKeycloakSsoEnabled = useSetting("keycloak-sso-enabled");
   const isLdapEnabled = useSetting("ldap-enabled");
   const hasSessionCookies = useSetting("session-cookies");
   const dispatch = useDispatch();
@@ -80,18 +87,21 @@ export const PasswordPanel = ({ redirectUrl }: PasswordPanelProps) => {
         hasSessionCookies={hasSessionCookies}
         onSubmit={handleSubmit}
       />
-      <ActionList>
-        <ActionListItem>
-          <AuthTextLink to="/auth/forgot_password">
-            {t`I seem to have forgotten my password`}
-          </AuthTextLink>
-        </ActionListItem>
-        {providers.map((provider) => (
-          <ActionListItem key={provider.name}>
-            <provider.Button redirectUrl={redirectUrl} />
-          </ActionListItem>
-        ))}
-      </ActionList>
+      {(isKeycloakSsoEnabled || providers.length > 0) && (
+        <ActionList>
+          <ActionListDivider>{t`or sign in with`}</ActionListDivider>
+          {isKeycloakSsoEnabled && (
+            <ActionListItem>
+              <KeycloakButton redirectUrl={redirectUrl} />
+            </ActionListItem>
+          )}
+          {providers.map((provider) => (
+            <ActionListItem key={provider.name}>
+              <provider.Button redirectUrl={redirectUrl} />
+            </ActionListItem>
+          ))}
+        </ActionList>
+      )}
     </div>
   );
 };

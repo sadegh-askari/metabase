@@ -19,16 +19,22 @@ const TEST_PASSWORD = "password";
 
 interface SetupOpts {
   isGoogleAuthEnabled?: boolean;
+  isKeycloakSsoEnabled?: boolean;
 }
 
-const setup = ({ isGoogleAuthEnabled = false }: SetupOpts = {}) => {
+const setup = ({
+  isGoogleAuthEnabled = false,
+  isKeycloakSsoEnabled = false,
+}: SetupOpts = {}) => {
   const state = createMockState({
     settings: createMockSettingsState({
       "google-auth-enabled": isGoogleAuthEnabled,
+      "keycloak-sso-enabled": isKeycloakSsoEnabled,
     }),
   });
 
   MetabaseSettings.set("google-auth-enabled", isGoogleAuthEnabled);
+  MetabaseSettings.set("keycloak-sso-enabled", isKeycloakSsoEnabled);
 
   setupLoginEndpoint();
   setupCurrentUserEndpoint(createMockUser());
@@ -38,6 +44,7 @@ const setup = ({ isGoogleAuthEnabled = false }: SetupOpts = {}) => {
 
 const cleanUp = () => {
   MetabaseSettings.set("google-auth-enabled", false);
+  MetabaseSettings.set("keycloak-sso-enabled", false);
 };
 
 describe("PasswordPanel", () => {
@@ -62,10 +69,11 @@ describe("PasswordPanel", () => {
     });
   });
 
-  it("should render a link to reset the password and a list of auth providers", () => {
-    setup({ isGoogleAuthEnabled: true });
+  it("should render Keycloak inline and hide the forgotten-password link", () => {
+    setup({ isKeycloakSsoEnabled: true });
 
-    expect(screen.getByText(/forgotten my password/)).toBeInTheDocument();
-    expect(screen.getByText("Sign in with Google")).toBeInTheDocument();
+    expect(screen.getByText("or sign in with")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Keycloak" })).toBeInTheDocument();
+    expect(screen.queryByText(/forgotten my password/)).not.toBeInTheDocument();
   });
 });

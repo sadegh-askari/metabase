@@ -70,10 +70,14 @@
 
 (defn- verified-email-claim?
   "Check the id-token `email_verified` claim (OIDC Core §5.1). A token that explicitly marks the email as
-   unverified is rejected; a missing claim is accepted since the claim is optional."
-  [claims]
+   unverified is rejected unless the provider opts in to subject-based linking; a missing claim is accepted since
+   the claim is optional."
+  [claims config]
   (let [verified (:email_verified claims)]
-    (or (nil? verified) (true? verified) (= verified "true"))))
+    (or (:allow-unverified-email? config)
+        (nil? verified)
+        (true? verified)
+        (= verified "true"))))
 
 (defn- extract-user-data
   "Extract user data from ID token claims.
@@ -94,7 +98,7 @@
         first-name (get claims (keyword firstname-attr))
         last-name (get claims (keyword lastname-attr))
         provider-id (:sub claims)]
-    (when email
+    (when (or email (:allow-missing-email? config))
       {:email email
        :first_name first-name
        :last_name last-name
@@ -145,7 +149,7 @@
                    :message (:error validation-result)}
                   ;; Extract user data from claims
                   (let [claims (:claims validation-result)]
-                    (if-not (verified-email-claim? claims)
+                    (if-not (verified-email-claim? claims enriched-config)
                       {:success? false
                        :error :email-not-verified
                        :message "Email address is not verified by the identity provider"}
