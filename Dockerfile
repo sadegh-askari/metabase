@@ -4,7 +4,7 @@
 
 FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk-jammy AS jdk
 
-FROM --platform=$BUILDPLATFORM node:22-bookworm AS builder
+FROM --platform=$BUILDPLATFORM node:22-trixie AS builder
 
 ARG MB_EDITION=oss
 ARG VERSION
