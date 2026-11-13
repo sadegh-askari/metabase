@@ -2,7 +2,9 @@
 import styled from "@emotion/styled";
 import { t } from "ttag";
 
-import { Icon, UnstyledButton } from "metabase/ui";
+import { UnstyledButton } from "metabase/ui";
+
+import keycloakIcon from "./keycloak.png";
 
 interface KeycloakButtonProps {
   isCard?: boolean;
@@ -22,12 +24,7 @@ export const KeycloakButton = ({
 
   return (
     <Button onClick={handleClick} type="button">
-      <Icon
-        name="key"
-        size={16}
-        style={{ color: "#e3a23b" }}
-        aria-hidden="true"
-      />
+      <img src={keycloakIcon} alt="" aria-hidden="true" />
       <span>{t`Keycloak`}</span>
     </Button>
   );
@@ -39,18 +36,31 @@ const Button = styled(UnstyledButton)`
   justify-content: center;
   gap: 0.5rem;
   width: 100%;
-  min-height: 2.125rem;
-  padding: 0.4rem 0.75rem;
-  border-radius: 4px;
+  height: 40px;
+  padding: 12px 16px;
+  border: 0.5px solid transparent;
+  border-radius: 8px;
   background-color: #414247;
   color: #f5f5f5;
-  font-size: 0.875rem;
+  font-family: var(--mb-default-font-family);
+  font-size: var(--mantine-font-size-md);
   font-weight: 700;
-  line-height: 1.25rem;
+  line-height: 16px;
+  box-shadow: var(--mantine-shadow-xs);
   transition: background-color 120ms ease;
+
+  img {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+  }
 
   &:hover {
     background-color: #505156;
+  }
+
+  &:active {
+    background-color: #38393d;
   }
 
   &:focus-visible {
