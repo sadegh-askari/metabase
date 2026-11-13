@@ -29,6 +29,12 @@
    provider :- :string]
   (t2/select-one :model/AuthIdentity :user_id (long user-id) :provider [:auto/param provider]))
 
+(mu/defn auth-identity-by-provider-id
+  "The AuthIdentity for `provider` with the external identifier `provider-id`, or nil."
+  [provider    :- :string
+   provider-id :- :string]
+  (t2/select-one :model/AuthIdentity :provider [:auto/param provider] :provider_id [:auto/param provider-id]))
+
 (mu/defn auth-identity-id
   "The id of the AuthIdentity of the User with `user-id` at `provider`, or nil."
   [user-id  :- ::lib.schema.id/user

@@ -297,6 +297,7 @@ export const createMockSettings = (
   "google-auth-client-id": null,
   "google-auth-configured": false,
   "google-auth-enabled": false,
+  "keycloak-sso-enabled": false,
   "is-hosted?": false,
   "jwt-enabled": false,
   "jwt-enabled-and-configured": false,

@@ -2,18 +2,21 @@
 # STAGE 1: builder
 ###################
 
-FROM node:22-bullseye AS builder
+FROM eclipse-temurin:25-jdk-jammy AS jdk
+
+FROM node:22-bookworm AS builder
 
 ARG MB_EDITION=oss
 ARG VERSION
 
 WORKDIR /home/node
 
-RUN apt-get update && apt-get upgrade -y && apt-get install wget apt-transport-https gpg curl git -y \
-    && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | gpg --dearmor | tee /etc/apt/trusted.gpg.d/adoptium.gpg > /dev/null \
-    && echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | tee /etc/apt/sources.list.d/adoptium.list \
-    && apt-get update \
-    && apt install temurin-25-jdk -y \
+COPY --from=jdk /opt/java/openjdk /opt/java/openjdk
+
+ENV JAVA_HOME=/opt/java/openjdk
+ENV PATH="/opt/java/openjdk/bin:$PATH"
+
+RUN apt-get update && apt-get install wget apt-transport-https curl git util-linux -y \
     && curl -O https://download.clojure.org/install/linux-install-1.12.0.1488.sh \
     && chmod +x linux-install-1.12.0.1488.sh \
     && ./linux-install-1.12.0.1488.sh \
@@ -32,7 +35,9 @@ RUN npm install -g bun
 # install frontend dependencies
 RUN bun install --frozen-lockfile
 
-RUN INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh :version ${VERSION}
+RUN --mount=type=cache,target=/root/.m2 \
+    --mount=type=cache,target=/root/.gitlibs \
+    taskset -c 0-3 env INTERACTIVE=false CI=true MB_EDITION=$MB_EDITION bin/build.sh "{:version \"${VERSION}\"}"
 
 # ###################
 # # STAGE 2: runner

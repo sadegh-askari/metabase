@@ -281,6 +281,19 @@
               (or (u.http/env-network-policy env-var-name raw-value)
                   :allow-all))))
 
+(defsetting keycloak-sso-enabled
+  (deferred-tru "Is Keycloak sign-in currently enabled?")
+  :type       :boolean
+  :visibility :public
+  :setter     :none
+  :default    false
+  :export?    false
+  :getter     (fn []
+                (boolean (and (config/config-str :mb-keycloak-oidc-issuer-uri)
+                              (config/config-str :mb-keycloak-oidc-client-id)
+                              (config/config-str :mb-keycloak-oidc-client-secret)
+                              (config/config-str :mb-encryption-secret-key)))))
+
 ;; Reading it throws when the environment names a policy that does not exist: a typo stops the boot rather than
 ;; surfacing at the first login.
 (defmethod startup/def-startup-validation! ::oidc-allowed-networks [_]

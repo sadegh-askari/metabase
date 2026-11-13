@@ -121,6 +121,11 @@ class MetabaseSettings {
     return this.get("google-auth-enabled");
   }
 
+  /** @deprecated use getSetting(state, "keycloak-sso-enabled") */
+  isKeycloakSsoEnabled() {
+    return this.get("keycloak-sso-enabled");
+  }
+
   /**
    * @deprecated use getSetting(state, "ldap-enabled")
    */
