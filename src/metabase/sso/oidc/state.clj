@@ -5,7 +5,8 @@
    redirect URL, and provider identification in a single encrypted cookie.
 
    Security features:
-   - AES256-CBC-HMAC-SHA512 encryption using MB_ENCRYPTION_SECRET_KEY
+   - AES256-CBC-HMAC-SHA512 encryption using MB_OIDC_STATE_SECRET_KEY, or the existing
+     MB_ENCRYPTION_SECRET_KEY when the dedicated OIDC key is not set
    - Built-in TTL validation (independent of cookie expiry)
    - Optional browser binding for request forgery protection
    - Tamper-evident via HMAC validation
@@ -13,6 +14,7 @@
   (:require
    [clojure.string :as str]
    [java-time.api :as t]
+   [metabase.config.core :as config]
    [metabase.system.core :as system]
    [metabase.util :as u]
    [metabase.util.encryption :as encryption]
@@ -34,6 +36,17 @@
 (def ^:private default-ttl-ms
   "Default time-to-live for OIDC state in milliseconds (10 minutes)."
   600000)
+
+(defonce ^:private hash-oidc-state-secret-key
+  (memoize #(encryption/validate-and-hash-secret-key % "MB_OIDC_STATE_SECRET_KEY")))
+
+(defn- oidc-state-secret-key []
+  (some-> (config/config-str :mb-oidc-state-secret-key)
+          hash-oidc-state-secret-key))
+
+(defn- state-encryption-opts []
+  (when-let [secret-key (oidc-state-secret-key)]
+    {:secret-key secret-key}))
 
 ;;; -------------------------------------------------- Redirect URL Validation --------------------------------------------------
 
@@ -149,20 +162,21 @@
 (defn- assert-encryption-enabled!
   "Throws an exception if encryption is not enabled."
   []
-  (when-not (encryption/default-encryption-enabled?)
-    (throw (ex-info (tru "OIDC authentication requires MB_ENCRYPTION_SECRET_KEY to be set. Please configure encryption to use OIDC authentication.")
+  (when-not (or (oidc-state-secret-key) (encryption/default-encryption-enabled?))
+    (throw (ex-info (tru "OIDC authentication requires MB_OIDC_STATE_SECRET_KEY or MB_ENCRYPTION_SECRET_KEY to be set.")
                     {:status-code 500}))))
 
 (defn encrypt-state
   "Encrypt OIDC state payload to a URL-safe string.
 
-   Uses Metabase's AES256-CBC-HMAC-SHA512 encryption with MB_ENCRYPTION_SECRET_KEY.
+   Uses Metabase's AES256-CBC-HMAC-SHA512 encryption with MB_OIDC_STATE_SECRET_KEY when set,
+   otherwise with MB_ENCRYPTION_SECRET_KEY.
    Throws an exception if encryption is not enabled."
   [state-map]
   (assert-encryption-enabled!)
   (-> state-map
       json/encode
-      encryption/encrypt))
+      (encryption/encrypt (state-encryption-opts))))
 
 (defn decrypt-state
   "Decrypt and validate OIDC state from encrypted string.
@@ -180,7 +194,7 @@
    (when encrypted-state
      (try
        (let [state-map (-> encrypted-state
-                           encryption/decrypt
+                           (encryption/decrypt (state-encryption-opts))
                            json/decode+kw)
              now       (t/to-millis-from-epoch (t/instant))]
          (cond

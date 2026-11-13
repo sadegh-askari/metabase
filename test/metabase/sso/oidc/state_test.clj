@@ -232,13 +232,22 @@
    (testing "throws exception when encryption not enabled"
      (is (thrown-with-msg?
           clojure.lang.ExceptionInfo
-          #"MB_ENCRYPTION_SECRET_KEY"
+          #"MB_OIDC_STATE_SECRET_KEY or MB_ENCRYPTION_SECRET_KEY"
           (oidc.state/encrypt-state {:state      "csrf"
                                      :nonce      "nonce"
                                      :redirect   "/"
                                      :provider   "test"
                                      :created-at 1704412800000
                                      :expires-at 1704413400000}))))))
+
+(deftest dedicated-oidc-state-secret-works-without-database-encryption-test
+  (with-redefs [oidc.state/oidc-state-secret-key (constantly test-secret)]
+    (without-encryption!
+     (let [original  {:state "csrf" :nonce "nonce" :redirect "/" :provider "keycloak"
+                      :created-at 1704412800000 :expires-at (+ (now-ms) 600000)}
+           encrypted (oidc.state/encrypt-state original)]
+       (is (string? encrypted))
+       (is (= original (oidc.state/decrypt-state encrypted)))))))
 
 (deftest decrypt-state-expired-test
   (with-test-encryption!

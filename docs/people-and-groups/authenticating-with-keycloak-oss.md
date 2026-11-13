@@ -23,14 +23,16 @@ Set these variables on the Metabase container and restart it:
 
 ```yaml
 MB_SITE_URL: https://metabase.example.com
-MB_ENCRYPTION_SECRET_KEY: <a stable, securely stored Metabase encryption key>
+MB_OIDC_STATE_SECRET_KEY: <a stable, securely stored secret of at least 16 characters>
 MB_KEYCLOAK_OIDC_ISSUER_URI: https://keycloak.example.com/realms/employees
 MB_KEYCLOAK_OIDC_CLIENT_ID: metabase
 MB_KEYCLOAK_OIDC_CLIENT_SECRET: <Keycloak client secret>
 ```
 
-The Keycloak button appears only when all three `MB_KEYCLOAK_OIDC_*` values and `MB_ENCRYPTION_SECRET_KEY` are present. Keep the encryption key
-stable across restarts and replicas; it protects the short-lived OIDC state cookie.
+The Keycloak button appears only when all three `MB_KEYCLOAK_OIDC_*` values and a state-encryption key are present. Use
+`MB_OIDC_STATE_SECRET_KEY` to encrypt the short-lived OIDC state cookie without changing encryption for existing Metabase database
+values. Alternatively, `MB_ENCRYPTION_SECRET_KEY` can provide the OIDC state key; adding it to an existing instance requires the
+documented one-time `enable-encryption` procedure. Keep whichever key you use stable across restarts and replicas.
 
 ## Existing users and matching
 

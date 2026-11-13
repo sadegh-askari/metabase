@@ -292,7 +292,8 @@
                 (boolean (and (config/config-str :mb-keycloak-oidc-issuer-uri)
                               (config/config-str :mb-keycloak-oidc-client-id)
                               (config/config-str :mb-keycloak-oidc-client-secret)
-                              (config/config-str :mb-encryption-secret-key)))))
+                              (or (config/config-str :mb-oidc-state-secret-key)
+                                  (config/config-str :mb-encryption-secret-key))))))
 
 ;; Reading it throws when the environment names a policy that does not exist: a typo stops the boot rather than
 ;; surfacing at the first login.
