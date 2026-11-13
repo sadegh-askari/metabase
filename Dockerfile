@@ -2,9 +2,9 @@
 # STAGE 1: builder
 ###################
 
-FROM eclipse-temurin:25-jdk-jammy AS jdk
+FROM --platform=$BUILDPLATFORM eclipse-temurin:25-jdk-jammy AS jdk
 
-FROM node:22-bookworm AS builder
+FROM --platform=$BUILDPLATFORM node:22-bookworm AS builder
 
 ARG MB_EDITION=oss
 ARG VERSION
