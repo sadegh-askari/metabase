@@ -16,6 +16,12 @@
   [_route-params _query-params _body request]
   (keycloak/sso-callback request))
 
+#_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
+(api.macros/defendpoint :post "/provisioning"
+  "Reconcile active state for accounts linked to exact Keycloak subjects."
+  [_route-params _query-params body request]
+  (keycloak/keycloak-account-reconciliation body request))
+
 (def ^{:arglists '([request respond raise])} routes
   "`/auth/sso/keycloak` routes."
   (api.macros/ns-handler *ns*))

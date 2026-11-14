@@ -5,20 +5,22 @@
    [metabase.auth-identity.db :as auth-identity.db]
    [metabase.auth-identity.provider :as provider]
    [metabase.config.core :as config]
+   [metabase.sso.integrations.keycloak :as keycloak.integration]
    [metabase.sso.oidc.discovery :as oidc.discovery]
    [metabase.sso.oidc.http :as oidc.http]
    [metabase.sso.oidc.tokens :as oidc.tokens]
    [metabase.sso.settings :as sso.settings]
    [metabase.sso.providers.keycloak]
    [metabase.test :as mt]
-   [metabase.test.fixtures :as fixtures]))
+   [metabase.test.fixtures :as fixtures]
+   [metabase.users-rest.db :as users-rest.db]))
 
 (use-fixtures :once (fixtures/initialize :db :test-users))
 
 (deftest keycloak-provider-hierarchy-test
-  (testing "Keycloak is a normal auth provider and does not inherit user provisioning"
+  (testing "Keycloak is a normal SSO provider and uses Metabase's standard account provisioning path"
     (is (auth-identity/isa? :provider/keycloak ::provider/provider))
-    (is (not (auth-identity/isa? :provider/keycloak ::provider/create-user-if-not-exists)))))
+    (is (auth-identity/isa? :provider/keycloak ::provider/create-user-if-not-exists))))
 
 (deftest keycloak-links-existing-user-without-changing-password-test
   (mt/with-temp [:model/User user {:email "keycloak-link@example.com"}]
@@ -106,15 +108,63 @@
       (is (false? (:success? result)))
       (is (= :email-not-verified (:error result))))))
 
-(deftest keycloak-does-not-provision-unmatched-user-test
-  (let [result (with-redefs [provider/authenticate
+(deftest keycloak-provisions-unmatched-user-as-passwordless-sso-account-test
+  (let [subject "new-keycloak-subject"
+        result (with-redefs [provider/authenticate
                              (fn [_provider _request]
                                {:success? true
-                                :provider-id "unmatched-subject"
-                                :user-data {:email "no-metabase-user@example.com"}})]
-                 (auth-identity/login! :provider/keycloak {}))]
-    (is (false? (:success? result)))
-    (is (= :account-not-found (:error result)))))
+                                :provider-id subject
+                                :user-data {:email "new-keycloak-user@example.com"
+                                            :first_name "New"
+                                            :last_name "User"
+                                            :sso_source :keycloak}})]
+                 (auth-identity/login! :provider/keycloak {}))
+        user (auth-identity.db/user (get-in result [:user :id]))
+        user-state (users-rest.db/user-active-type-and-sso-source (get-in result [:user :id]))]
+    (is (true? (:success? result)))
+    (is (= "new-keycloak-user@example.com" (:email user)))
+    (is (= :keycloak (:sso_source user-state)))
+    (is (= :personal (:type user-state)))
+    (is (= (:id user) (:user_id (auth-identity.db/auth-identity-by-provider-id "keycloak" subject))))
+    (is (nil? (auth-identity.db/auth-identity (:id user) "password")))))
+
+(deftest keycloak-account-reconciler-disables-and-reactivates-exactly-linked-user-test
+  (mt/with-temp [:model/User user {:email "keycloak-reconcile@example.com" :type :personal}]
+    (let [subject "reconcile-keycloak-subject"
+          user-id (:id user)]
+      (auth-identity.db/insert-auth-identity! {:user_id user-id
+                                               :provider "keycloak"
+                                               :provider_id subject})
+      (let [preview (keycloak.integration/reconcile-linked-accounts
+                     {:targets [{:subject subject :active false}]
+                      :managed_inactive {}
+                      :dry_run true})]
+        (is (= "would_deactivate" (get-in preview [:accounts 0 :action])))
+        (is (true? (auth-identity.db/user-active? user-id))))
+      (let [disabled (keycloak.integration/reconcile-linked-accounts
+                      {:targets [{:subject subject :active false}]
+                       :managed_inactive {}})]
+        (is (= "deactivated" (get-in disabled [:accounts 0 :action])))
+        (is (false? (auth-identity.db/user-active? user-id))))
+      (let [enabled (keycloak.integration/reconcile-linked-accounts
+                     {:targets [{:subject subject :active true}]
+                      :managed_inactive {subject user-id}})]
+        (is (= "reactivated" (get-in enabled [:accounts 0 :action])))
+        (is (true? (auth-identity.db/user-active? user-id)))))))
+
+(deftest keycloak-account-reconciler-preserves-manually-deactivated-user-test
+  (mt/with-temp [:model/User user {:email "keycloak-manual-disable@example.com" :type :personal}]
+    (let [subject "manual-disable-keycloak-subject"
+          user-id (:id user)]
+      (auth-identity.db/insert-auth-identity! {:user_id user-id
+                                               :provider "keycloak"
+                                               :provider_id subject})
+      (users-rest.db/update-personal-user! user-id {:is_active false})
+      (let [result (keycloak.integration/reconcile-linked-accounts
+                    {:targets [{:subject subject :active true}]
+                     :managed_inactive {}})]
+        (is (= "skipped_manual_deactivation" (get-in result [:accounts 0 :action])))
+        (is (false? (auth-identity.db/user-active? user-id)))))))
 
 (deftest keycloak-subject-cannot-be-linked-to-a-second-user-test
   (mt/with-temp [:model/User first-user  {:email "first-keycloak-user@example.com"}

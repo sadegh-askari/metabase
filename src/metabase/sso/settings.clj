@@ -331,6 +331,7 @@
      :saml   (setting/get :saml-enabled)
      :jwt    (setting/get :jwt-enabled)
      :oidc   (setting/get :oidc-enabled)
+     :keycloak (keycloak-sso-enabled)
      :slack  (setting/get :slack-connect-enabled)
      :scim   (setting/get :scim-enabled)
      ;; Unknown sso_source -- treat as disabled to allow password reset

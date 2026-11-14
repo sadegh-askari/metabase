@@ -1,8 +1,8 @@
 (ns metabase.sso.providers.keycloak
-  "Keycloak OIDC login for existing Metabase accounts.
+  "Keycloak OIDC login for linked and new Metabase accounts.
 
-  Unlike the generic OIDC provider, this provider never provisions users or updates their profile. It links a verified
-  Keycloak subject to an active Metabase account with the same email, while leaving the password AuthIdentity intact."
+  Existing users are linked by exact Keycloak subject or verified email without removing their password identity.
+  New verified Keycloak identities use Metabase's standard passwordless SSO account provisioning path."
   (:require
    [metabase.auth-identity.core :as auth-identity]
    [metabase.auth-identity.db :as auth-identity.db]
@@ -17,6 +17,7 @@
 (set! *warn-on-reflection* true)
 
 (auth-identity/derive! :provider/keycloak ::provider/provider)
+(auth-identity/derive! :provider/keycloak ::provider/create-user-if-not-exists)
 
 (defn- oidc-config [request]
   (when (sso.settings/keycloak-sso-enabled)
@@ -50,8 +51,13 @@
             linked-identity
             (assoc result :user-id (:user_id linked-identity))
 
-            email-verified?
-            result
+            (and email-verified?
+                 (string? (get-in result [:user-data :email]))
+                 (seq (get-in result [:user-data :email])))
+            (assoc-in result [:user-data :sso_source] :keycloak)
+
+            (and (not linked-identity) email-verified?)
+            (failure :email-required (tru "Keycloak must provide a verified email address for this account."))
 
             :else
             (failure :email-not-verified
@@ -63,11 +69,13 @@
   [_provider {:keys [success? user provider-id redirect-url] :as request}]
   (cond
     (not success?) request
-    (nil? user)
-    (failure :account-not-found
-             (tru "No existing Metabase account matches this Keycloak email. Contact your administrator."))
     (not (and (string? provider-id) (seq provider-id)))
     (failure :missing-keycloak-subject (tru "Keycloak did not return a user identifier."))
+    ;; New Keycloak users are created through Metabase's normal SSO provisioning path. It creates
+    ;; an SSO-only account without a password identity; existing email-matched accounts still take
+    ;; the linking path below and retain their local password identity.
+    (nil? user)
+    (next-method _provider request)
     :else
     (let [user-id (long (:id user))
           linked-for-user (auth-identity.db/auth-identity user-id "keycloak")
