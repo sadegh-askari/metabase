@@ -93,7 +93,10 @@
   `managed-inactive` maps subjects to Metabase user IDs that this reconciler disabled previously.
   This lets us restore only our own deactivations while preserving administrator-disabled accounts."
   [{:keys [targets managed_inactive dry_run]}]
-  (let [managed-inactive (or managed_inactive {})
+  (let [managed-inactive (into {}
+                               (map (fn [[subject user-id]]
+                                      [(if (keyword? subject) (name subject) subject) user-id]))
+                               (or managed_inactive {}))
         dry-run (boolean dry_run)]
     (when-not (and (sequential? targets)
                    (<= (count targets) 500)

@@ -2,7 +2,8 @@
   "Public routes for Keycloak authentication."
   (:require
    [metabase.api.macros :as api.macros]
-   [metabase.sso.integrations.keycloak :as keycloak]))
+   [metabase.sso.integrations.keycloak :as keycloak]
+   [metabase.util.malli.schema :as ms]))
 
 #_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :get "/"
@@ -19,7 +20,7 @@
 #_{:clj-kondo/ignore [:metabase/validate-defendpoint-has-response-schema]}
 (api.macros/defendpoint :post "/provisioning"
   "Reconcile active state for accounts linked to exact Keycloak subjects."
-  [_route-params _query-params body request]
+  [_route-params _query-params body :- ms/RingRequestBody request]
   (keycloak/keycloak-account-reconciliation body request))
 
 (def ^{:arglists '([request respond raise])} routes

@@ -1,11 +1,13 @@
 (ns metabase.sso.providers.keycloak-test
   (:require
    [clojure.test :refer :all]
+   [metabase.api.macros :as api.macros]
    [metabase.auth-identity.core :as auth-identity]
    [metabase.auth-identity.db :as auth-identity.db]
    [metabase.auth-identity.provider :as provider]
    [metabase.config.core :as config]
    [metabase.sso.integrations.keycloak :as keycloak.integration]
+   [metabase.sso.api.keycloak]
    [metabase.sso.oidc.discovery :as oidc.discovery]
    [metabase.sso.oidc.http :as oidc.http]
    [metabase.sso.oidc.tokens :as oidc.tokens]
@@ -148,9 +150,17 @@
         (is (false? (auth-identity.db/user-active? user-id))))
       (let [enabled (keycloak.integration/reconcile-linked-accounts
                      {:targets [{:subject subject :active true}]
-                      :managed_inactive {subject user-id}})]
+                       :managed_inactive {(keyword subject) user-id}})]
         (is (= "reactivated" (get-in enabled [:accounts 0 :action])))
         (is (true? (auth-identity.db/user-active? user-id)))))))
+
+(deftest keycloak-reconciler-endpoint-preserves-json-body-test
+  (let [body {:targets [{:subject "keycloak-subject" :active true}]
+              :managed_inactive {(keyword "keycloak-subject") 7}
+              :dry_run true}
+        core-fn (:core-fn (api.macros/find-route 'metabase.sso.api.keycloak :post "/provisioning"))]
+    (with-redefs [keycloak.integration/keycloak-account-reconciliation (fn [request-body _request] request-body)]
+      (is (= body (:body (core-fn nil nil body {:headers {}})))))))
 
 (deftest keycloak-account-reconciler-preserves-manually-deactivated-user-test
   (mt/with-temp [:model/User user {:email "keycloak-manual-disable@example.com" :type :personal}]
